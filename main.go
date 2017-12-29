@@ -3,31 +3,21 @@ package main
 import (
     "log"
     "fmt"
+    "unicode"    
+    "strings"
     "github.com/PuerkitoBio/goquery"
     "github.com/gocolly/colly"
-    // For coloring print
-    "github.com/fatih/color"
+    // Local Dependency
+    "./models"
 )
 
 const tokenListURL string = "https://erc20-tokens.eidoo.io"
+const tokenListStorage string = "https://api.airtable.com/v0/appx0zwzwHaUyBg0g/Utility%20Tokens"
 
-func colorPercentageChanges(amountStr string) string {
-    isNegative := string(amountStr[0]) == "-"
-
-    if isNegative {
-
-        red := color.New(color.FgRed).SprintFunc()
-        return red(amountStr)
-
-    } else {
-
-        green := color.New(color.FgGreen).SprintFunc()
-        return green(amountStr)
-
-    }
-}
 
 func main() {
+    var tokens []models.Token
+
     // Instantiate default collector
     c := colly.NewCollector()
 
@@ -39,14 +29,27 @@ func main() {
     // Extract token
     c.OnHTML("#tokensTable tbody", func(e *colly.HTMLElement) {
         e.DOM.Find("tr#coinRow").Each(func(_ int, sel *goquery.Selection) {
-            name := sel.Find(".coin h4").Text()
-            price := sel.Find(".price h4").Text()
-            rawChange := sel.Find(".change h4").Text()
+            fullname := sel.Find(".coin h4").Text()
+            description := sel.Find(".coin p").Text()
 
-            change := colorPercentageChanges(rawChange)
+            nameInfos := strings.Split(fullname, " ")
+            name := nameInfos[0]
+            rawTicker := nameInfos[1]
 
-            fmt.Printf("%v %v %v \n", name, price, change)
-        })        
+            ticker :=  strings.TrimFunc(rawTicker, func(c rune) bool {
+                return !unicode.IsLetter(c)
+            })
+
+            if description != "" {
+                tokens = append(tokens, models.Token{Name: name, Ticker: ticker, Description: description})
+            }
+        })
+
+        for _, elem := range tokens {
+
+            fmt.Printf("%v %v %v \n", elem.Name, elem.Ticker, elem.Description)            
+
+        }        
     })
 
     c.Visit(tokenListURL)
