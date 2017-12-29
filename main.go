@@ -2,9 +2,14 @@ package main
 
 import (
     "log"
-    "fmt"
+    // "fmt"
     "unicode"    
     "strings"
+    
+    "bytes"
+    "net/http"
+    "encoding/json"
+    
     "github.com/PuerkitoBio/goquery"
     "github.com/gocolly/colly"
     // Local Dependency
@@ -16,7 +21,7 @@ const tokenListStorage string = "https://api.airtable.com/v0/appx0zwzwHaUyBg0g/U
 
 
 func main() {
-    var tokens []models.Token
+    tokens := []models.Token
 
     // Instantiate default collector
     c := colly.NewCollector()
@@ -45,9 +50,39 @@ func main() {
             }
         })
 
+        client := &http.Client{}
+
         for _, elem := range tokens {
 
-            fmt.Printf("%v %v %v \n", elem.Name, elem.Ticker, elem.Description)            
+            tokenBody := map[string]interface{}{
+                "fields": map[string]string{
+                    "Name": elem.Name,
+                    "Ticker":  elem.Ticker,
+                    "Description": elem.Description,
+                },                
+            }
+
+            bytesRepresentation, marshallErr := json.Marshal(tokenBody)
+            if marshallErr != nil {
+                log.Fatal("Error: ", marshallErr)
+            }
+
+            req, _ := http.NewRequest("POST", tokenListStorage, bytes.NewBuffer(bytesRepresentation))
+            req.Header.Set("Authorization", "Bearer keydQbBOM9VSsBdJT")
+            req.Header.Set("Content-type", "application/json")
+            
+            resp, respErr := client.Do(req)
+            if respErr != nil {
+                log.Fatalln(respErr)
+            }
+            // Do not forget to close the response body
+            defer resp.Body.Close()
+
+            var result map[string]interface{}
+
+            json.NewDecoder(resp.Body).Decode(&result)
+            log.Println(result)
+            // fmt.Printf("%v %v %v \n", elem.Name, elem.Ticker, elem.Description)            
 
         }        
     })
